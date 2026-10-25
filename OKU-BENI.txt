@@ -1,0 +1,44 @@
+ANTIGRAVITY <-> TELEGRAM KOPRUSU (surum 6)
+==========================================
+
+GUNLUK KULLANIM
+- Antigravity'yi masaustundeki "Antigravity (Telegram)" kisayolundan ac.
+- Kopru bilgisayar acilinca kendiliginden gizli calisir. Telegram'da botuna /start yaz.
+
+TELEGRAM DUGMELERI
+Projeler      -> proje, sonra sohbet sec. "Yeni sohbet" ile projede yeni sohbet acarsin.
+Biten isler   -> biten islerin cevabini cek.
+Calisanlar    -> su an calisan isler.
+Zamanli       -> zamanlanmis mesajlar (silmek icin dokun).
+Bilgisayar    -> bilgisayar durumu (/pc).
+
+NELER YAPAR
+- Is bitince "Bot islemi bitirdi" + kisa ozet gonderir (degisen dosya sayisi, cevabin ilk satirlari).
+  Cevapta gecen dosyalar icin "Dosya al" dugmesi cikar.
+- Ajan ONAY beklerse (Accept / Allow vb.) haber verir; dugmeye basarsan senin yerine tiklar.
+- 15 dk takilirsa ve 60 dk'dan uzun surerse uyarir.
+- Sohbet secip yazdigin her sey o sohbete gider. Dosya (foto, PDF, Excel...) ek olarak eklenir.
+- Sesli mesaj -> yaziya cevrilir, "Gonder" dersen sohbete gider (Ses-Kurulum.bat gerekir).
+- /dosya C:\yol\dosya.apk  -> bilgisayardaki dosyayi Telegram'a yollar. Klasor yazarsan en yeni 10 dosyayi listeler.
+- /zamanla 03:00 mesaj   /zamanla yarin 09:30 mesaj   /zamanla +45 mesaj  (once sohbet sec)
+- /pc -> Antigravity durumu, bos disk, bellek, islemci.
+- /yenidenbaslat -> Antigravity'yi kopru portuyla kapatip acar (calisan isler yarida kalir, onay ister).
+- Antigravity kapanirsa ve sen 5 dk'dir bilgisayarda degilsen kendisi yeniden acar.
+- Bilgisayar uykuya gecmez (ekran kapanabilir). Kapatmak icin ayarlar.env: KEEP_AWAKE=0
+- Telegram'dan gelen dosyalar "gelen" klasorune iner, 7 gun sonra silinir (GELEN_GUN=7).
+
+GUVENLIK
+- Bota sadece eslestirdigin Telegram hesabi komut verebilir. Baskasi denerse sana uyari gelir.
+- "sil", "rm -rf", "format", "git push --force" gibi tehlikeli ifadeler icin gondermeden once onay sorar
+  (kapatmak icin ayarlar.env: GUVENLI_MOD=0).
+- /dosya sadece izinli klasorlerden dosya yollar (varsayilan: kullanici klasorun). Degistirmek icin
+  ayarlar.env: DOSYA_KOKLERI=C:\Users\MyPC\Desktop;D:\Projeler
+- Bot tokenini kimseyle paylasma. Paylastiysan BotFather'da /revoke yap, yeni tokeni ayarlar.env'e yaz.
+
+GUNCELLEME SONRASI
+Kopru-Yeniden-Baslat.bat dosyasini bir kez calistir.
+
+SORUN OLURSA
+Telegram'da /teshis yaz, gelen teshis.json dosyasini bana ilet.
+Ayarlar (ayarlar.env, hepsi istege bagli): STUCK_MIN=15  LONG_MIN=60  OZET=1  AUTO_RESTART=1
+  NEW_CONV_RELAXED=1 (yeni sohbet dogrulamasi sorun cikarirsa)  STT_DIL=tr  OPENAI_API_KEY=... (ses icin bulut secenegi)

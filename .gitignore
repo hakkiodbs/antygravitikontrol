@@ -1,0 +1,10 @@
+ayarlar.env
+gelen/
+*.log
+teshis*.json
+zamanlanmis.json
+__pycache__/
+*.pyc
+kopru.pid
+whatsapp-profil/
+githubbot/ayarlar.json

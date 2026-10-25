@@ -1,0 +1,105 @@
+﻿# İzlePro yayın botu: sürümü GitHub'a (izlepromobil/izlepro-release) tek komutla yayınlar.
+# Sırası: 1) APK'yı sürüm olarak yükler  2) version.json + config.json dosyalarını gönderir.
+# (APK yüklenmeden duyuru gitmesin diye dosyalar EN SONA bırakılır.)
+# Kullanım: yayinla.bat           -> soru sorarak yayınlar
+#           yayinla.bat -Deneme   -> hiçbir şey göndermez, sadece kontrol eder
+param([switch]$Evet, [switch]$Deneme, [string]$TvApk = '')
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+# Ayarlar (proje klasörü ve GitHub deposu) ayarlar.json dosyasından okunur
+$Ayar = Get-Content (Join-Path $PSScriptRoot 'ayarlar.json') -Encoding UTF8 -Raw | ConvertFrom-Json
+$Depo = $Ayar.depo
+$Kok  = $Ayar.proje
+if (-not (Test-Path (Join-Path $Kok 'pubspec.yaml'))) { Write-Host "DURDU: Proje klasörü bulunamadı: $Kok (ayarlar.json içindeki 'proje' yolunu düzeltin)" -ForegroundColor Red; exit 1 }
+
+function Dur($m) { Write-Host ""; Write-Host "DURDU: $m" -ForegroundColor Red; exit 1 }
+function Bilgi($m) { Write-Host $m -ForegroundColor Cyan }
+function Tamam($m) { Write-Host "  [OK] $m" -ForegroundColor Green }
+
+Bilgi "== İzlePro Yayın Botu =="
+
+# 1) Araçlar ve giriş
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+  Dur "GitHub aracı (gh) kurulu değil. Bir kez şunu çalıştırın:  winget install --id GitHub.cli   (sonra bu pencereyi kapatıp yeniden açın)"
+}
+gh auth status *> $null
+if ($LASTEXITCODE -ne 0) { Dur "GitHub'a giriş yapılmamış. Bir kez şunu çalıştırın:  gh auth login   (tarayıcıdan onaylayın)" }
+Tamam "GitHub girişi var"
+
+# 2) Sürüm bilgileri
+$pub = Get-Content (Join-Path $Kok 'pubspec.yaml') -Encoding UTF8 -Raw
+if ($pub -notmatch '(?m)^version:\s*([0-9.]+)\+(\d+)') { Dur "pubspec.yaml içinde sürüm bulunamadı." }
+$Surum = $Matches[1]; $Kod = [int]$Matches[2]
+$vjPath = Join-Path $Kok 'version.json'
+$cfgPath = Join-Path $Kok 'uzak_ayar\config.json'
+$vj = Get-Content $vjPath -Encoding UTF8 -Raw | ConvertFrom-Json
+if ($vj.version_name -ne $Surum -or [int]$vj.version_code -ne $Kod) {
+  Dur "version.json ($($vj.version_name)+$($vj.version_code)) ile pubspec.yaml ($Surum+$Kod) farklı. Önce: python `"$Kok\araclar\surum_yap.py`" $Surum $Kod"
+}
+if ($vj.download_url -notlike "*/download/v$Surum/IzlePro_Mobil.apk") { Dur "version.json içindeki indirme adresi v$Surum sürümüne işaret etmiyor." }
+try { Get-Content $cfgPath -Encoding UTF8 -Raw | ConvertFrom-Json | Out-Null } catch { Dur "uzak_ayar\config.json geçerli bir JSON değil." }
+Tamam "Sürüm $Surum (kod $Kod) dosyalarla tutarlı"
+
+# 3) APK kontrolü (koddan eski APK yayınlanmasın)
+$Apk = Join-Path $Kok 'build\app\outputs\flutter-apk\app-release.apk'
+if (-not (Test-Path $Apk)) { Dur "APK yok: $Apk  (Android Studio'da Build > Flutter > Build APK yapın)" }
+$apkZaman = (Get-Item $Apk).LastWriteTime
+$kodZaman = (Get-ChildItem (Join-Path $Kok 'lib') -Recurse -Filter *.dart | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+$eskiUyari = $apkZaman -lt $kodZaman
+if ($eskiUyari) { Write-Host "  [UYARI] APK ($apkZaman) koddaki son değişiklikten ($kodZaman) ESKİ. Yeniden derlemeniz önerilir." -ForegroundColor Yellow }
+else { Tamam "APK koddan yeni ($([math]::Round((Get-Item $Apk).Length/1MB,1)) MB)" }
+$TvVar = $TvApk -ne '' -and (Test-Path $TvApk)
+if ($TvApk -ne '' -and -not $TvVar) { Dur "TV APK bulunamadı: $TvApk" }
+
+# 4) Bu sürüm zaten yayında mı?
+gh release view "v$Surum" -R $Depo *> $null
+if ($LASTEXITCODE -eq 0) { Dur "v$Surum zaten yayında. Yeni yayın için sürümü artırın (python `"$Kok\araclar\surum_yap.py`" yeniSurum yeniKod)." }
+Tamam "v$Surum henüz yayında değil"
+
+Write-Host ""
+Bilgi "Yayınlanacak:"
+Write-Host "  Depo     : $Depo"
+Write-Host "  Sürüm    : v$Surum (kod $Kod)"
+Write-Host "  Dosyalar : IzlePro_Mobil.apk$(if($TvVar){', IzlePro_TV.apk'}), version.json, config.json"
+Write-Host "  Notlar   :"; ($vj.release_notes -split "`n") | ForEach-Object { Write-Host "     $_" }
+
+if ($Deneme) { Write-Host ""; Bilgi "DENEME modu: hiçbir şey gönderilmedi. Her şey hazır görünüyor."; exit 0 }
+if (-not $Evet) {
+  if ($eskiUyari) { Write-Host "DİKKAT: APK koddan eski!" -ForegroundColor Yellow }
+  $c = Read-Host "Yayınlansın mı? (evet yazıp Enter)"
+  if ($c -ne 'evet') { Dur "İptal edildi. Hiçbir şey gönderilmedi." }
+}
+
+# 5) Önce APK'lar (sürüm olarak)
+$tmp = Join-Path $env:TEMP "izlepro_yayin_$Surum"
+if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+New-Item -ItemType Directory $tmp | Out-Null
+Copy-Item $Apk (Join-Path $tmp 'IzlePro_Mobil.apk')
+$dosyalar = @((Join-Path $tmp 'IzlePro_Mobil.apk'))
+if ($TvVar) { Copy-Item $TvApk (Join-Path $tmp 'IzlePro_TV.apk'); $dosyalar += (Join-Path $tmp 'IzlePro_TV.apk') }
+$notFile = Join-Path $tmp 'notlar.md'
+[IO.File]::WriteAllText($notFile, [string]$vj.release_notes, (New-Object Text.UTF8Encoding($false)))
+Bilgi "APK'lar yükleniyor (büyük dosya, bekleyin)..."
+gh release create "v$Surum" @dosyalar -R $Depo --title "İzlePro v$Surum" --notes-file $notFile
+if ($LASTEXITCODE -ne 0) { Dur "Sürüm oluşturulamadı. Dosyalar (version.json) GÖNDERİLMEDİ, kimseye güncelleme duyurusu gitmedi." }
+Tamam "APK'lar yayında: https://github.com/$Depo/releases/tag/v$Surum"
+
+# 6) En son: version.json ve config.json (duyuru ve uzaktan ayar)
+function DosyaGonder($yerel, $uzakAd) {
+  $sha = (gh api "repos/$Depo/contents/$uzakAd" --jq .sha 2>$null)
+  if ($LASTEXITCODE -ne 0) { $sha = $null }
+  $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($yerel))
+  $body = @{ message = "v$Surum ($uzakAd güncellendi)"; content = $b64; branch = 'main' }
+  if ($sha) { $body.sha = $sha }
+  $bf = Join-Path $tmp "$uzakAd.istek.json"
+  [IO.File]::WriteAllText($bf, ($body | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
+  gh api -X PUT "repos/$Depo/contents/$uzakAd" --input $bf | Out-Null
+  if ($LASTEXITCODE -ne 0) { Dur "$uzakAd gönderilemedi (APK yayında ama duyuru gitmedi; scripti -Evet ile değil, elle dosyayı yükleyin)." }
+  Tamam "$uzakAd gönderildi"
+}
+DosyaGonder $cfgPath 'config.json'
+DosyaGonder $vjPath 'version.json'   # en son: kullanıcılara "yeni sürüm var" bundan sonra görünür
+
+Remove-Item $tmp -Recurse -Force
+Write-Host ""
+Bilgi "BİTTİ. v$Surum yayında; eski sürümü kullananlara güncelleme bildirimi görünecek."
